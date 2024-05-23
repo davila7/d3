@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Graph Filter</title>
+  <script src="https://d3js.org/d3.v6.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <label for="startNode">Start Node:</label>
+  <input type="text" id="startNode" name="startNode">
+  <label for="endNode">End Node:</label>
+  <input type="text" id="endNode" name="endNode">
+  <button onclick="updateChart()">Update</button>
+  <div id="chart"></div>
+
+  <script>
+    // Sample data for the graph
+    const data = {
+      name: "A",
+      children: [
+        { name: "B" },
+        { name: "C" },
+        { name: "D" },
+        { name: "E" }
+      ]
+    };
+
+    // Specify the chart’s dimensions.
+    const width = 928;
+    const height = 600;
+
+    // Compute the graph and start the force simulation.
+    const root = d3.hierarchy(data);
+    const links = root.links();
+    const nodes = root.descendants();
+
+    const simulation = d3.forceSimulation(nodes)
+        .force("link", d3.forceLink(links).id(d => d.id).distance(100).strength(1))
+        .force("charge", d3.forceManyBody().strength(-300))
+        .force("x", d3.forceX())
+        .force("y", d3.forceY());
+
+    // Create the container SVG.
+    const svg = d3.select("#chart").append("svg")
+        .attr("width", width)
+        .attr("height", height)
+        .attr("viewBox", [-width / 2, -height / 2, width, height])
+        .attr("style", "max-width: 100%; height: auto;");
+
+    // Drag functionality
+    const drag = simulation => {
+      function dragstarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+      }
+
+      function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+      }
+
+      function dragended(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+      }
+
+      return d3.drag()
+          .on("start", dragstarted)
+          .on("drag", dragged)
+          .on("end", dragended);
+    };
+
+    // Append links.
+    const link = svg.append("g")
+        .attr("stroke", "#999")
+        .attr("stroke-opacity", 0.6)
+      .selectAll("line")
+      .data(links)
+      .join("line");
+
+    // Append nodes.
+    const node = svg.append("g")
+        .attr("fill", "#fff")
+        .attr("stroke", "#000")
+        .attr("stroke-width", 1.5)
+      .selectAll("circle")
+      .data(nodes)
+      .join("circle")
+        .attr("fill", d => d.children ? null : "#000")
+        .attr("stroke", d => d.children ? null : "#fff")
+        .attr("r", 10) // Increase the radius to make nodes larger
+        .call(drag(simulation));
+
+    node.append("title")
+        .text(d => d.data.name);
+
+    simulation.on("tick", () => {
+      link
+          .attr("x1", d => d.source.x)
+          .attr("y1", d => d.source.y)
+          .attr("x2", d => d.target.x)
+          .attr("y2", d => d.target.y);
+
+      node
+          .attr("cx", d => d.x)
+          .attr("cy", d => d.y);
+    });
+
+    // Function to update the chart based on the selected nodes
+    function updateChart() {
+      const startNode = document.getElementById('startNode').value;
+      const endNode = document.getElementById('endNode').value;
+
+      // Filter links and nodes based on the selected nodes
+      const filteredLinks = links.filter(link => {
+        return (link.source.data.name === startNode && link.target.data.name === endNode);
+      });
+
+      const filteredNodes = nodes.filter(node => {
+        return filteredLinks.some(link => link.source === node || link.target === node);
+      });
+
+      // Update the simulation with the filtered data
+      simulation.nodes(filteredNodes);
+      simulation.force("link").links(filteredLinks);
+
+      // Update the visualization
+      link.data(filteredLinks).join("line");
+      node.data(filteredNodes).join("circle");
+
+      // Restart the simulation
+      simulation.alpha(1).restart();
+    }
+  </script>
+</body>
+</html>
